@@ -16,6 +16,9 @@ services:
       - OPENFGA_METRICS_ENABLE_RPC_HISTOGRAMS=true
       - OPENFGA_DATASTORE_METRICS_ENABLED=true
       - OPENFGA_METRICS_ENABLED=TRUE
+      - OPENFGA_CHECK_QUERY_CACHE_ENABLED=true
+      - OPENFGA_CHECK_QUERY_CACHE_LIMIT=33
+      - OPENFGA_CHECK_QUERY_CACHE_TTL=10s
 
   otel-collector:
     image: otel/opentelemetry-collector:latest

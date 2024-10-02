@@ -122,6 +122,13 @@ type CheckFuncReducer func(ctx context.Context, concurrencyLimit uint32, handler
 // evaluations in flight at any point.
 func resolver(ctx context.Context, concurrencyLimit uint32, resultChan chan<- checkOutcome, handlers ...CheckHandlerFunc) func() {
 	limiter := make(chan struct{}, concurrencyLimit)
+	// this limit is 100
+
+	// upping to 1000 was ok?
+	// only once
+	// let's dial it down to 500 and see
+	//limiter := make(chan struct{}, concurrencyLimit*5)
+	//log.Printf("JUSTIN LIMIT: %d", concurrencyLimit)
 
 	var wg sync.WaitGroup
 
@@ -989,6 +996,7 @@ func (c *LocalChecker) checkDirect(parentctx context.Context, req *ResolveCheckR
 					DatastoreQueryCount: req.GetRequestMetadata().DatastoreQueryCount + 1,
 				},
 			}
+			c.logger.Info(fmt.Sprintf("Justin query count? %+v", response))
 
 			opts := storage.ReadUserTupleOptions{
 				Consistency: storage.ConsistencyOptions{

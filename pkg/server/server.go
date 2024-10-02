@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/openfga/openfga/internal/graph"
@@ -922,7 +924,166 @@ func (s *Server) Write(ctx context.Context, req *openfgav1.WriteRequest) (*openf
 	})
 }
 
+// look into how Expand is working now
+// Also write accepts a batch of writes
+func (s *Server) BatchCheck(ctx context.Context, req *openfgav1.BatchCheckRequest) (*openfgav1.BatchCheckResponse, error) {
+	s.logger.Info("justin BATCH")
+	s.logger.Info(fmt.Sprintf("Justin numRoutines at start: %d", runtime.NumGoroutine()))
+	start := time.Now()
+
+	ctx, span := tracer.Start(ctx, "BatchCheck", trace.WithAttributes(
+		attribute.KeyValue{Key: "store_id", Value: attribute.StringValue(req.GetStoreId())},
+		attribute.KeyValue{Key: "batch_size", Value: attribute.IntValue(len(req.GetChecks().Checks))},
+	))
+	defer span.End()
+
+	ctx = telemetry.ContextWithRPCInfo(ctx, telemetry.RPCInfo{
+		Service: s.serviceName,
+		Method:  "BatchCheck",
+	})
+
+	storeID := req.GetStoreId()
+	modelID := "01J8QBXT27F1WJ4RK89M7FK1M8"
+	typesys, err := s.resolveTypesystem(ctx, storeID, modelID)
+	if err != nil {
+		return nil, err
+	}
+
+	//if err := validation.ValidateUserObjectRelation(typesys, tuple.ConvertCheckRequestTupleKeyToTupleKey(tk)); err != nil {
+	//	return nil, serverErrors.ValidationError(err)
+	//}
+
+	// None in here
+	//for _, ctxTuple := range req.GetContextualTuples().GetTupleKeys() {
+	//	if err := validation.ValidateTuple(typesys, ctxTuple); err != nil {
+	//		return nil, serverErrors.HandleTupleValidateError(err)
+	//	}
+	//}
+
+	ctx = typesystem.ContextWithTypesystem(ctx, typesys)
+	// There are no contextual tuples here rn
+	ctx = storage.ContextWithRelationshipTupleReader(ctx,
+		storagewrappers.NewBoundedConcurrencyTupleReader(
+			storagewrappers.NewCombinedTupleReader(
+				s.datastore,
+				nil,
+			),
+			s.maxConcurrentReadsForCheck,
+		),
+	)
+
+	checkRequestMetadata := graph.NewCheckRequestMetadata(s.resolveNodeLimit)
+
+	var results []*openfgav1.CheckResponse
+	mux := &sync.RWMutex{}
+
+	wg := sync.WaitGroup{}
+	//errChan := make(chan error, 1)
+
+	totalQueries := 0
+	for _, check := range req.GetChecks().GetChecks() {
+		wg.Add(1)
+		//s.logger.Info(fmt.Sprintf("JUSTIN # %d", i))
+		go func() (error, any) {
+			defer wg.Done()
+
+			resolveCheckRequest := graph.ResolveCheckRequest{
+				StoreID:              storeID,
+				AuthorizationModelID: typesys.GetAuthorizationModelID(), // the resolved model id
+				TupleKey:             tuple.ConvertCheckRequestTupleKeyToTupleKey(check.GetTupleKey()),
+				ContextualTuples:     nil,
+				Context:              nil,
+				RequestMetadata:      checkRequestMetadata,
+				Consistency:          openfgav1.ConsistencyPreference_UNSPECIFIED,
+			}
+
+			const methodName = "check"
+
+			resp, err := s.checkResolver.ResolveCheck(ctx, &resolveCheckRequest)
+			if err != nil {
+				//telemetry.TraceError(span, err)
+				if errors.Is(err, graph.ErrResolutionDepthExceeded) {
+					s.logger.Error(serverErrors.AuthorizationModelResolutionTooComplex.Error())
+					return nil, serverErrors.AuthorizationModelResolutionTooComplex
+				}
+
+				if errors.Is(err, condition.ErrEvaluationFailed) {
+					s.logger.Error(serverErrors.ValidationError(err).Error())
+					return nil, serverErrors.ValidationError(err)
+				}
+
+				// Note for ListObjects:
+				// Currently this is not feasible in ListObjects and ListUsers as we return partial results.
+				if errors.Is(err, context.DeadlineExceeded) && resolveCheckRequest.GetRequestMetadata().WasThrottled.Load() {
+					throttledRequestCounter.WithLabelValues(s.serviceName, methodName).Inc()
+					s.logger.Error(serverErrors.ThrottledTimeout.Error())
+					return nil, serverErrors.ThrottledTimeout
+				}
+
+				s.logger.Error(serverErrors.HandleError("", err).Error())
+				return nil, serverErrors.HandleError("", err)
+			}
+
+			//s.logger.Info(fmt.Sprintf("justin resp obj: %+v", resp))
+			//s.logger.Info(fmt.Sprintf("justin resp metadata: %+v", resp.GetResolutionMetadata()))
+			//s.logger.Info(fmt.Sprintf("resp obj: %+v", resp))
+			queryCount := float64(resp.GetResolutionMetadata().DatastoreQueryCount)
+			totalQueries += int(queryCount)
+			//s.logger.Info(fmt.Sprintf("JUSTIN query count: %d", totalQueries))
+
+			rawDispatchCount := checkRequestMetadata.DispatchCounter.Load()
+			dispatchCount := float64(rawDispatchCount)
+
+			res := &openfgav1.CheckResponse{
+				Allowed: resp.Allowed,
+			}
+
+			mux.Lock()
+			results = append(results, res)
+			checkResultCounter.With(prometheus.Labels{allowedLabel: strconv.FormatBool(resp.GetAllowed())}).Inc()
+			span.SetAttributes(attribute.KeyValue{Key: "allowed", Value: attribute.BoolValue(res.GetAllowed())})
+			grpc_ctxtags.Extract(ctx).Set(datastoreQueryCountHistogramName, queryCount)
+			span.SetAttributes(attribute.Float64(datastoreQueryCountHistogramName, queryCount))
+			datastoreQueryCountHistogram.WithLabelValues(
+				s.serviceName,
+				methodName,
+			).Observe(queryCount)
+			grpc_ctxtags.Extract(ctx).Set(dispatchCountHistogramName, dispatchCount)
+			span.SetAttributes(attribute.Float64(dispatchCountHistogramName, dispatchCount))
+			dispatchCountHistogram.WithLabelValues(
+				s.serviceName,
+				methodName,
+			).Observe(dispatchCount)
+
+			requestDurationHistogram.WithLabelValues(
+				s.serviceName,
+				methodName,
+				utils.Bucketize(uint(resp.GetResolutionMetadata().DatastoreQueryCount), s.requestDurationByQueryHistogramBuckets),
+				utils.Bucketize(uint(rawDispatchCount), s.requestDurationByDispatchCountHistogramBuckets),
+				openfgav1.ConsistencyPreference_UNSPECIFIED.String(),
+			).Observe(float64(time.Since(start).Milliseconds()))
+			mux.Unlock()
+
+			wasRequestThrottled := checkRequestMetadata.WasThrottled.Load()
+			if wasRequestThrottled {
+				throttledRequestCounter.WithLabelValues(s.serviceName, methodName).Inc()
+			}
+			//s.logger.Info(fmt.Sprintf("JUSTIN # %d done", i))
+			numRoutines := runtime.NumGoroutine()
+			s.logger.Info(fmt.Sprintf("Justin numRoutines: %d", numRoutines))
+			return nil, nil
+		}()
+	}
+	wg.Wait()
+
+	s.logger.Info(fmt.Sprintf("JUSTIN total queries: %d", totalQueries))
+	return &openfgav1.BatchCheckResponse{
+		Results: results,
+	}, nil
+}
+
 func (s *Server) Check(ctx context.Context, req *openfgav1.CheckRequest) (*openfgav1.CheckResponse, error) {
+	s.logger.Info("justin CHECK request")
 	start := time.Now()
 
 	tk := req.GetTupleKey()

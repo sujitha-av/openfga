@@ -145,7 +145,7 @@ func (c *CachedCheckResolver) ResolveCheck(
 	req *ResolveCheckRequest,
 ) (*ResolveCheckResponse, error) {
 	span := trace.SpanFromContext(ctx)
-
+	//c.logger.Info("justin in resolve check")
 	cacheKey, err := CheckRequestCacheKey(req)
 	if err != nil {
 		c.logger.Error("cache key computation failed with error", zap.Error(err))
@@ -156,13 +156,17 @@ func (c *CachedCheckResolver) ResolveCheck(
 	tryCache := req.Consistency != openfgav1.ConsistencyPreference_HIGHER_CONSISTENCY
 
 	if tryCache {
+		c.logger.Info("justin trying cache")
 		checkCacheTotalCounter.Inc()
 
 		cachedResp := c.cache.Get(cacheKey)
+		//c.logger.Info(fmt.Sprintf("justin cached resp %+v", cachedResp))
 		isCached := cachedResp != nil && !cachedResp.Expired && cachedResp.Value != nil
 		span.SetAttributes(attribute.Bool("is_cached", isCached))
+		//c.logger.Info(fmt.Sprintf("justin is cahced? %t", isCached))
 		if isCached {
 			checkCacheHitCounter.Inc()
+			c.logger.Info("justin cache hit")
 
 			// return a copy to avoid races across goroutines
 			return cachedResp.Value.clone(), nil
