@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -928,7 +927,7 @@ func (s *Server) Write(ctx context.Context, req *openfgav1.WriteRequest) (*openf
 // Also write accepts a batch of writes
 func (s *Server) BatchCheck(ctx context.Context, req *openfgav1.BatchCheckRequest) (*openfgav1.BatchCheckResponse, error) {
 	s.logger.Info("justin BATCH")
-	s.logger.Info(fmt.Sprintf("Justin numRoutines at start: %d", runtime.NumGoroutine()))
+	//s.logger.Info(fmt.Sprintf("Justin numRoutines at start: %d", runtime.NumGoroutine()))
 	start := time.Now()
 
 	ctx, span := tracer.Start(ctx, "BatchCheck", trace.WithAttributes(
@@ -943,8 +942,7 @@ func (s *Server) BatchCheck(ctx context.Context, req *openfgav1.BatchCheckReques
 	})
 
 	storeID := req.GetStoreId()
-	modelID := "01J8QBXT27F1WJ4RK89M7FK1M8"
-	typesys, err := s.resolveTypesystem(ctx, storeID, modelID)
+	typesys, err := s.resolveTypesystem(ctx, storeID, req.GetAuthorizationModelId())
 	if err != nil {
 		return nil, err
 	}
@@ -1069,8 +1067,8 @@ func (s *Server) BatchCheck(ctx context.Context, req *openfgav1.BatchCheckReques
 				throttledRequestCounter.WithLabelValues(s.serviceName, methodName).Inc()
 			}
 			//s.logger.Info(fmt.Sprintf("JUSTIN # %d done", i))
-			numRoutines := runtime.NumGoroutine()
-			s.logger.Info(fmt.Sprintf("Justin numRoutines: %d", numRoutines))
+			//numRoutines := runtime.NumGoroutine()
+			//s.logger.Info(fmt.Sprintf("Justin numRoutines: %d", numRoutines))
 			return nil, nil
 		}()
 	}
