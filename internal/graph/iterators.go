@@ -9,9 +9,9 @@ import (
 	"github.com/openfga/openfga/pkg/storage"
 )
 
-// cachedTupled is a simple struct to hold the minimal data needed
+// cachedUserTuple is a simple struct to hold the minimal data needed
 // to store in a cached iterator.
-type cachedTuple struct {
+type cachedUserTuple struct {
 	user      string
 	condition *openfgav1.RelationshipCondition
 	timestamp *timestamppb.Timestamp
@@ -22,7 +22,7 @@ type cachedTuple struct {
 type cachedUserTupleIterator struct {
 	object   string
 	relation string
-	iter     storage.Iterator[cachedTuple]
+	iter     storage.Iterator[cachedUserTuple]
 }
 
 var _ storage.TupleIterator = (*cachedUserTupleIterator)(nil)

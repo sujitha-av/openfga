@@ -192,7 +192,7 @@ func (c *CachedDatastore) newCachedIterator(
 
 	if isCached {
 		tuplesCacheHitCounter.Inc()
-		staticIter := storage.NewStaticIterator[cachedTuple](cachedResp.Value.([]cachedTuple))
+		staticIter := storage.NewStaticIterator[cachedUserTuple](cachedResp.Value.([]cachedUserTuple))
 		iter := &cachedUserTupleIterator{object, relation, staticIter}
 		return iter, nil
 	}
@@ -206,7 +206,7 @@ func (c *CachedDatastore) newCachedIterator(
 		iter:          iter,
 		relation:      relation,
 		object:        object,
-		tuples:        make([]cachedTuple, 0, c.maxResultSize),
+		tuples:        make([]cachedUserTuple, 0, c.maxResultSize),
 		cacheKey:      cacheKey,
 		cache:         c.cache,
 		maxResultSize: c.maxResultSize,
@@ -224,7 +224,7 @@ type cachedIterator struct {
 	iter     storage.TupleIterator
 	relation string
 	object   string
-	tuples   []cachedTuple
+	tuples   []cachedUserTuple
 	cacheKey string
 	cache    storage.InMemoryCache[any]
 	ttl      time.Duration
@@ -328,7 +328,7 @@ func (c *cachedIterator) addToBuffer(t *openfgav1.Tuple) bool {
 		return false
 	}
 	tk := t.GetKey()
-	ct := cachedTuple{
+	ct := cachedUserTuple{
 		user:      tk.GetUser(),
 		condition: tk.GetCondition(),
 		timestamp: t.GetTimestamp(),
@@ -350,7 +350,7 @@ func (c *cachedIterator) flush() {
 	// Copy tuples buffer into new destination before storing into cache
 	// otherwise, the cache will be storing pointers. This should also help
 	// with garbage collection.
-	tuples := make([]cachedTuple, len(c.tuples))
+	tuples := make([]cachedUserTuple, len(c.tuples))
 	copy(tuples, c.tuples)
 
 	c.cache.Set(c.cacheKey, tuples, c.ttl)

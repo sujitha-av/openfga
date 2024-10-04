@@ -50,10 +50,10 @@ func TestReadUsersetTuples(t *testing.T) {
 		tuple.NewTupleKey("company:1", "viewer", "user:5"),
 	}
 	var tuples []*openfgav1.Tuple
-	var cachedTuples []cachedTuple
+	var cachedTuples []cachedUserTuple
 	for _, tk := range tks {
 		tuples = append(tuples, &openfgav1.Tuple{Key: tk, Timestamp: now})
-		cachedTuples = append(cachedTuples, cachedTuple{
+		cachedTuples = append(cachedTuples, cachedUserTuple{
 			user:      tk.GetUser(),
 			condition: tk.GetCondition(),
 			timestamp: now,
@@ -147,7 +147,7 @@ func TestReadUsersetTuples(t *testing.T) {
 			mockDatastore.EXPECT().
 				ReadUsersetTuples(gomock.Any(), storeID, filter, options).
 				Return(storage.NewStaticTupleIterator([]*openfgav1.Tuple{}), nil),
-			mockCache.EXPECT().Set(gomock.Any(), []cachedTuple{}, ttl),
+			mockCache.EXPECT().Set(gomock.Any(), []cachedUserTuple{}, ttl),
 		)
 
 		iter, err := ds.ReadUsersetTuples(ctx, storeID, filter, options)
@@ -235,10 +235,10 @@ func TestRead(t *testing.T) {
 		tuple.NewTupleKey("company:1", "viewer", "user:5"),
 	}
 	var tuples []*openfgav1.Tuple
-	var cachedTuples []cachedTuple
+	var cachedTuples []cachedUserTuple
 	for _, tk := range tks {
 		tuples = append(tuples, &openfgav1.Tuple{Key: tk, Timestamp: now})
-		cachedTuples = append(cachedTuples, cachedTuple{
+		cachedTuples = append(cachedTuples, cachedUserTuple{
 			user:      tk.GetUser(),
 			condition: tk.GetCondition(),
 			timestamp: now,
@@ -324,7 +324,7 @@ func TestRead(t *testing.T) {
 			mockDatastore.EXPECT().
 				Read(gomock.Any(), storeID, tk, storage.ReadOptions{}).
 				Return(storage.NewStaticTupleIterator([]*openfgav1.Tuple{}), nil),
-			mockCache.EXPECT().Set(gomock.Any(), []cachedTuple{}, ttl),
+			mockCache.EXPECT().Set(gomock.Any(), []cachedUserTuple{}, ttl),
 		)
 
 		iter, err := ds.Read(ctx, storeID, tk, storage.ReadOptions{})
@@ -452,7 +452,7 @@ func TestCachedIterator(t *testing.T) {
 		},
 	}
 
-	cachedTuples := []cachedTuple{
+	cachedTuples := []cachedUserTuple{
 		{
 			user:      "bill",
 			timestamp: now,
@@ -478,7 +478,7 @@ func TestCachedIterator(t *testing.T) {
 
 		iter := &cachedIterator{
 			iter:          mocks.NewErrorTupleIterator(tuples),
-			tuples:        make([]cachedTuple, 0, maxCacheSize),
+			tuples:        make([]cachedUserTuple, 0, maxCacheSize),
 			cacheKey:      cacheKey,
 			cache:         cache,
 			maxResultSize: maxCacheSize,
@@ -512,7 +512,7 @@ func TestCachedIterator(t *testing.T) {
 
 		iter := &cachedIterator{
 			iter:          storage.NewStaticTupleIterator(tuples),
-			tuples:        make([]cachedTuple, 0, maxCacheSize),
+			tuples:        make([]cachedUserTuple, 0, maxCacheSize),
 			cacheKey:      cacheKey,
 			cache:         cache,
 			maxResultSize: maxCacheSize,
@@ -555,7 +555,7 @@ func TestCachedIterator(t *testing.T) {
 
 		iter := &cachedIterator{
 			iter:          storage.NewStaticTupleIterator(tuples),
-			tuples:        make([]cachedTuple, 0, maxCacheSize),
+			tuples:        make([]cachedUserTuple, 0, maxCacheSize),
 			cacheKey:      cacheKey,
 			cache:         cache,
 			maxResultSize: maxCacheSize,
@@ -581,7 +581,7 @@ func TestCachedIterator(t *testing.T) {
 
 		iter := &cachedIterator{
 			iter:          storage.NewStaticTupleIterator(tuples),
-			tuples:        make([]cachedTuple, 0, maxCacheSize),
+			tuples:        make([]cachedUserTuple, 0, maxCacheSize),
 			cacheKey:      cacheKey,
 			cache:         cache,
 			maxResultSize: maxCacheSize,
@@ -611,7 +611,7 @@ func TestCachedIterator(t *testing.T) {
 		cachedResults := cache.Get(cacheKey)
 		require.NotNil(t, cachedResults)
 
-		require.Equal(t, cachedTuples, cachedResults.Value.([]cachedTuple))
+		require.Equal(t, cachedTuples, cachedResults.Value.([]cachedUserTuple))
 	})
 
 	t.Run("calling_stop_caches_in_background", func(t *testing.T) {
@@ -625,7 +625,7 @@ func TestCachedIterator(t *testing.T) {
 
 		iter := &cachedIterator{
 			iter:          storage.NewStaticTupleIterator(tuples),
-			tuples:        make([]cachedTuple, 0, maxCacheSize),
+			tuples:        make([]cachedUserTuple, 0, maxCacheSize),
 			cacheKey:      cacheKey,
 			cache:         cache,
 			maxResultSize: maxCacheSize,
@@ -638,7 +638,7 @@ func TestCachedIterator(t *testing.T) {
 		cachedResults := cache.Get(cacheKey)
 		require.NotNil(t, cachedResults)
 
-		require.Equal(t, cachedTuples, cachedResults.Value.([]cachedTuple))
+		require.Equal(t, cachedTuples, cachedResults.Value.([]cachedUserTuple))
 	})
 
 	t.Run("parent_context_cancelled_still_caches_in_background", func(t *testing.T) {
@@ -652,7 +652,7 @@ func TestCachedIterator(t *testing.T) {
 
 		iter := &cachedIterator{
 			iter:          storage.NewStaticTupleIterator(tuples),
-			tuples:        make([]cachedTuple, 0, maxCacheSize),
+			tuples:        make([]cachedUserTuple, 0, maxCacheSize),
 			cacheKey:      cacheKey,
 			cache:         cache,
 			maxResultSize: maxCacheSize,
@@ -671,7 +671,7 @@ func TestCachedIterator(t *testing.T) {
 		cachedResults := cache.Get(cacheKey)
 		require.NotNil(t, cachedResults)
 
-		require.Equal(t, cachedTuples, cachedResults.Value.([]cachedTuple))
+		require.Equal(t, cachedTuples, cachedResults.Value.([]cachedUserTuple))
 	})
 
 	t.Run("prevent_draining_if_already_cached", func(t *testing.T) {
@@ -694,7 +694,7 @@ func TestCachedIterator(t *testing.T) {
 
 		iter1 := &cachedIterator{
 			iter:          mockedIter1,
-			tuples:        make([]cachedTuple, 0, maxCacheSize),
+			tuples:        make([]cachedUserTuple, 0, maxCacheSize),
 			cacheKey:      cacheKey,
 			cache:         mockCache,
 			maxResultSize: maxCacheSize,
@@ -739,7 +739,7 @@ func TestCachedIterator(t *testing.T) {
 
 			iter1 := &cachedIterator{
 				iter:          mockedIter1,
-				tuples:        make([]cachedTuple, 0, maxCacheSize),
+				tuples:        make([]cachedUserTuple, 0, maxCacheSize),
 				cacheKey:      cacheKey,
 				cache:         mockCache,
 				maxResultSize: maxCacheSize,
@@ -753,7 +753,7 @@ func TestCachedIterator(t *testing.T) {
 
 			iter2 := &cachedIterator{
 				iter:          mockedIter2,
-				tuples:        make([]cachedTuple, 0, maxCacheSize),
+				tuples:        make([]cachedUserTuple, 0, maxCacheSize),
 				cacheKey:      cacheKey,
 				cache:         mockCache,
 				maxResultSize: maxCacheSize,
