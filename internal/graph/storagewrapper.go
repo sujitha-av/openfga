@@ -193,7 +193,7 @@ func (c *CachedDatastore) newCachedIterator(
 	if isCached {
 		tuplesCacheHitCounter.Inc()
 		staticIter := storage.NewStaticIterator[cachedTuple](cachedResp.Value.([]cachedTuple))
-		iter := &cachedTupleIterator{object, relation, staticIter}
+		iter := &cachedUserTupleIterator{object, relation, staticIter}
 		return iter, nil
 	}
 

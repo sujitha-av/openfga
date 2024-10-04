@@ -17,19 +17,19 @@ type cachedTuple struct {
 	timestamp *timestamppb.Timestamp
 }
 
-// cachedTupleIterator is a wrapper around a cached iterator
+// cachedUserTupleIterator is a wrapper around a cached iterator
 // for a given object/relation.
-type cachedTupleIterator struct {
+type cachedUserTupleIterator struct {
 	object   string
 	relation string
 	iter     storage.Iterator[cachedTuple]
 }
 
-var _ storage.TupleIterator = (*cachedTupleIterator)(nil)
+var _ storage.TupleIterator = (*cachedUserTupleIterator)(nil)
 
 // Next will return the next available minimal cached tuple tuple
 // as a well-formed [openfgav1.Tuple].
-func (c *cachedTupleIterator) Next(ctx context.Context) (*openfgav1.Tuple, error) {
+func (c *cachedUserTupleIterator) Next(ctx context.Context) (*openfgav1.Tuple, error) {
 	t, err := c.iter.Next(ctx)
 	if err != nil {
 		return nil, err
@@ -48,14 +48,14 @@ func (c *cachedTupleIterator) Next(ctx context.Context) (*openfgav1.Tuple, error
 	return cachedTuple, nil
 }
 
-// Stop see [storage.Iterator].Stop
-func (c *cachedTupleIterator) Stop() {
+// Stop see [storage.Iterator].Stop.
+func (c *cachedUserTupleIterator) Stop() {
 	c.iter.Stop()
 }
 
 // Head will return the first minimal cached tuple of the iterator as
 // a well-formed [openfgav1.Tuple].
-func (c *cachedTupleIterator) Head(ctx context.Context) (*openfgav1.Tuple, error) {
+func (c *cachedUserTupleIterator) Head(ctx context.Context) (*openfgav1.Tuple, error) {
 	t, err := c.iter.Head(ctx)
 	if err != nil {
 		return nil, err
