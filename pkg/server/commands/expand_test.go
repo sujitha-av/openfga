@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	serverErrors "github.com/openfga/openfga/pkg/server/errors"
-	"github.com/openfga/openfga/pkg/storage"
 	"github.com/openfga/openfga/pkg/storage/memory"
 	storagetest "github.com/openfga/openfga/pkg/storage/test"
 	"github.com/openfga/openfga/pkg/tuple"
@@ -133,7 +132,7 @@ func TestExpandWithContextualTuples(t *testing.T) {
 					Leaf: &openfgav1.UsersetTree_Leaf{
 						Value: &openfgav1.UsersetTree_Leaf_Users{
 							Users: &openfgav1.UsersetTree_Users{
-								Users: []string{"user:alice", "user:bob"},
+								Users: []string{"user:bob", "user:alice"},
 							},
 						},
 					},
